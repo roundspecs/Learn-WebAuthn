@@ -3,15 +3,15 @@
 > One line: what this project is.
 
 **Status:** In progress / Done
-**Started:** YYYY-MM-DD
+**Started:** 2026-10-20
 **Finished:** YYYY-MM-DD
-**Stack:** e.g. Go, Python, SQLite
+**Stack:** e.g. Go, SQLite
 
 ---
 
 ## 1. What and why
 
-<!-- One paragraph. What does it do? What did I want to learn by building it? -->
+WebAuthn is here to replace passwords and I think this is the future.
 
 ## 2. Core idea
 
@@ -23,16 +23,18 @@ If I can't write this, I haven't understood it yet. -->
 
 <!-- A small diagram or a file-by-file map. Example:
 
-```
-main.go        -> starts the program, reads input
-parser.go      -> turns raw input into data
-store.go       -> saves and loads data
-```
 -->
+
+```
+main.go           -> backend
+static/index.html -> frontend
+static/main.js    -> frontend
+```
 
 ## 4. Key decisions
 
 <!-- Each decision: what I chose, why, and what I rejected. -->
+- I chose to use SQLite instead of maps/slices because it will later be easier to reuse the same code in actual projects. And I didn't use a real database because that requires setting up the database.
 
 ## 5. What broke
 
@@ -54,11 +56,7 @@ This is usually where the real learning is. -->
 <!-- Exact commands, copy-paste ready. Include setup. -->
 
 ```bash
-# setup
-
-# run
-
-# test
+go run .
 ```
 
 ## 8. Next
@@ -81,4 +79,4 @@ This is usually where the real learning is. -->
 
 <!-- Docs, papers, tutorials, or videos I used. -->
 
--
+- [Web Dev Simplified - YouTube](https://www.youtube.com/watch?v=viZs1iVsLpA)
