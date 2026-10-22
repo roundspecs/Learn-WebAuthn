@@ -19,10 +19,43 @@ WebAuthn is here to replace passwords and I think this is the future.
 Explain the main idea in plain words, as if telling a friend.
 If I can't write this, I haven't understood it yet. -->
 
+``` text
+client                                              server
+------                                              ------
+POST /register/begin \
+--body {username: "zarif"}------------------------->
+                                                    if !username: error
+                                                    if username exists: error
+                                                    create user with a random 64-byte ID
+                                                    {id, user} -> db
+                                                    webauthn.BeginReg(user) -> options, session, err
+                                                    // session has UserId inside it. We will use it later.
+                                                    if err: status 500 (internal server error)
+                                                    generate random token for session cookie
+                                                    {"webauthn_ceremony", token} -> cookie
+                                                    {token, session} -> db
+<---------------------------------------------------options // it has the challenge inside it
+navigator.credentials.create(options) -> data
+// data has the signed answer to challenge
+POST /register/finish \
+--body options
+--cookie "webauthn_ceremony=..."------------------->
+                                                    cookie("webauthn_ceremony") -> token
+                                                    db(token) -> session
+                                                    deleteCookie("webauthn_ceremony") // we don't need it any more
+                                                    db(session.UserID) -> user
+                                                    webauthn.FinishReg(user, session, data) -> credentials, err
+                                                    if err: status 401 (unauthorized)
+                                                    user.credentials.append(credentials)
+                                                    {id, user} -> db // upsert user. now it has new credentials registered
+<---------------------------------------------------status 201 (created)
+```
+
+`
+
 ## 3. How it's built
 
 <!-- A small diagram or a file-by-file map. Example:
-
 -->
 
 ```
