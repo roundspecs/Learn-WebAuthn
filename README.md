@@ -34,7 +34,9 @@ static/main.js    -> frontend
 ## 4. Key decisions
 
 <!-- Each decision: what I chose, why, and what I rejected. -->
-- I chose to use SQLite instead of maps/slices because it will later be easier to reuse the same code in actual projects. And I didn't use a real database because that requires setting up the database.
+- Database: Couchbase
+  - Not in-memory maps because I want to test it across server restarts, and I also wanted to reuse this code in my couchbase projects
+  - Not any RDBMS because the data being stored (e.g. webauthn.Credentials) are too complex
 
 ## 5. What broke
 
