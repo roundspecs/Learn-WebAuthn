@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/couchbase/gocb/v2"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"time"
 )
 
 type SessionModel struct{ scope *gocb.Scope }
@@ -22,8 +21,5 @@ func (m *SessionModel) Get(key string) (s webauthn.SessionData) {
 }
 
 func (m *SessionModel) Delete(key string) {
-	m.scope.Collection("sessions").Remove(key, &gocb.RemoveOptions{
-		Timeout:         100 * time.Millisecond,
-		DurabilityLevel: gocb.DurabilityLevelMajority,
-	})
+	m.scope.Collection("sessions").Remove(key, nil)
 }

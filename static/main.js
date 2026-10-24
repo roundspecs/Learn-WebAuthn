@@ -18,7 +18,7 @@ async function register() {
   }
 
   setStatus("Registering as " + username + "...");
-  const response = await fetch("/register/begin", {
+  response = await fetch("/register/begin", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username: username }),
@@ -58,10 +58,74 @@ async function register() {
   });
   if (!response.ok) {
     setStatus("Error");
-    return;
+  }
+  else {
+    setStatus("Registered")
   }
 }
 
-function login() {
-  setStatus("Logging in...");
+async function login() {
+  const username = usernameField.value;
+  if (username == "") {
+    setStatus("Username is required");
+    return;
+  }
+
+  setStatus("Logging in as " + username + "...");
+  let response = await fetch("/login/begin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: username }),
+  });
+  if (!response.ok) {
+    setStatus("Error");
+    return;
+  }
+  const options = await response.json();
+  setStatus("Got challenge: " + options.publicKey.challenge);
+  options.publicKey.challenge = Uint8Array.fromBase64(
+    options.publicKey.challenge,
+    { alphabet: "base64url" },
+  );
+  if (options.publicKey.allowCredentials) {
+    options.publicKey.allowCredentials = options.publicKey.allowCredentials.map(
+      (cred) => ({
+        ...cred,
+        id: Uint8Array.fromBase64(cred.id, { alphabet: "base64url" }),
+      }),
+    );
+  }
+  const data = await navigator.credentials.get(options);
+
+  const payload = {
+    type: data.type,
+    id: data.id,
+    rawId: new Uint8Array(data.rawId).toBase64({ alphabet: "base64url" }),
+    response: {
+      clientDataJSON: new Uint8Array(data.response.clientDataJSON).toBase64({
+        alphabet: "base64url",
+      }),
+      authenticatorData: new Uint8Array(
+        data.response.authenticatorData,
+      ).toBase64({ alphabet: "base64url" }),
+      signature: new Uint8Array(data.response.signature).toBase64({
+        alphabet: "base64url",
+      }),
+      userHandle: data.response.userHandle
+        ? new Uint8Array(data.response.userHandle).toBase64({
+            alphabet: "base64url",
+          })
+        : null,
+    },
+  };
+  response = await fetch("/login/finish", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    setStatus("Error");
+    return;
+  }
+  setStatus("Logged in");
 }

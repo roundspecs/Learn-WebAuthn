@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -107,5 +108,53 @@ func registerFinish(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func loginBegin(w http.ResponseWriter, r *http.Request)  {}
-func loginFinish(w http.ResponseWriter, r *http.Request) {}
+func loginBegin(w http.ResponseWriter, r *http.Request) {
+	var req UsernameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Username == "" {
+		http.Error(w, "Username is required", http.StatusBadRequest)
+		return
+	}
+	username := req.Username
+
+	u, err := userModel.GetByUsername(username)
+	if err != nil || u == nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	assertion, session, err := wa.BeginLogin(u)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	key := getOrSetCookie(w, r, "webauthn_ceremony")
+	sessionModel.Insert(key, session)
+
+	json.NewEncoder(w).Encode(assertion)
+}
+
+func loginFinish(w http.ResponseWriter, r *http.Request) {
+	key := getOrSetCookie(w, r, "webauthn_ceremony")
+	session := sessionModel.Get(key)
+	deleteCookie(w, key)
+	sessionModel.Delete(key)
+	u, _ := userModel.Get(session.UserID)
+	if u == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	credential, err := wa.FinishLogin(u, session, r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	for i, c := range u.Credentials {
+		if bytes.Equal(c.ID, credential.ID) {
+			u.Credentials[i] = *credential
+			break
+		}
+	}
+	userModel.Upsert(u)
+	w.WriteHeader(http.StatusOK)
+}
