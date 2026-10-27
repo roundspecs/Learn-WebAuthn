@@ -3,11 +3,31 @@ const loginBtn = document.querySelector("#login-btn");
 const statusText = document.querySelector("#status-text");
 const usernameField = document.querySelector("#username-field");
 
+let isLoggedIn = false;
+
 registerBtn.addEventListener("click", register);
-loginBtn.addEventListener("click", login);
+loginBtn.addEventListener("click", () => {
+  if (isLoggedIn) {
+    logout();
+  } else {
+    login();
+  }
+});
 
 function setStatus(status) {
   statusText.innerHTML = status;
+}
+
+function setLoggedIn(loggedIn) {
+  isLoggedIn = loggedIn;
+  if (loggedIn) {
+    loginBtn.textContent = "Logout";
+    setStatus("Logged in");
+  } else {
+    loginBtn.textContent = "Login";
+    setStatus("Logged out");
+    usernameField.value = "";
+  }
 }
 
 checkSession();
@@ -18,13 +38,27 @@ async function checkSession() {
     if (!response.ok) return;
     const data = await response.json();
     if (data.loggedIn) {
-      setStatus("Logged in");
+      setLoggedIn(true);
       if (data.username) {
         usernameField.value = data.username;
       }
     }
   } catch (err) {
     console.error(err);
+  }
+}
+
+async function logout() {
+  setStatus("Logging out...");
+  try {
+    const response = await fetch("/logout", { method: "POST" });
+    if (response.ok) {
+      setLoggedIn(false);
+    } else {
+      setStatus("Error logging out");
+    }
+  } catch (err) {
+    setStatus("Error logging out");
   }
 }
 
@@ -145,5 +179,5 @@ async function login() {
     setStatus("Error");
     return;
   }
-  setStatus("Logged in");
+  setLoggedIn(true);
 }
