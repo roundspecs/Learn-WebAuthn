@@ -61,27 +61,45 @@ POST /login/begin \
                                                     if !username: error
                                                     if username !exists: status 404 (not found)
                                                     db(username) -> user
-                                                    webauthn.BeginReg(user) -> assertion, session, err
+                                                    webauthn.BeginLogin(user) -> assertion, session, err
                                                     // session has UserId inside it. We will use it later.
                                                     if err: status 500 (internal server error)
-                                                    generate random token for session cookie
+                                                    generate random token for ceremony cookie
                                                     {"webauthn_ceremony", token} -> cookie
                                                     {token, session} -> db
 <---------------------------------------------------assertion // it has the challenge inside it
 navigator.credentials.get(assertion) -> data
 // data has the signed answer to challenge
-POST /register/finish \
+POST /login/finish \
 --body options
 --cookie "webauthn_ceremony=..."------------------->
                                                     cookie("webauthn_ceremony") -> token
                                                     db(token) -> session
                                                     deleteCookie("webauthn_ceremony") // we don't need it any more
                                                     db(session.UserID) -> user
-                                                    webauthn.FinishReg(user, session, data) -> credentials, err
+                                                    webauthn.FinishLogin(user, session, data) -> credential, err
                                                     if err: status 401 (unauthorized)
-                                                    user.credentials.append(credentials)
-                                                    {id, user} -> db // upsert user. now it has new credentials registered
-<---------------------------------------------------status 201 (created)
+                                                    update user.credentials
+                                                    {id, user} -> db
+                                                    generate session token
+                                                    {"session", token} -> cookie
+                                                    {token, userSession} -> db
+<---------------------------------------------------status 200 (ok)
+```
+
+Session check (when first entered):
+``` text
+client                                              server
+------                                              ------
+GET /session \
+--cookie "session=..."----------------------------->
+                                                    cookie("session") -> token
+                                                    db(token) -> userSession
+                                                    db(userSession.UserID) -> user
+                                                    if valid: {loggedIn: true, username: user.Name}
+                                                    else: {loggedIn: false}
+<---------------------------------------------------status 200 (json)
+update UI status ("Logged in" / "Logged out")
 ```
 ## 3. How it's built
 

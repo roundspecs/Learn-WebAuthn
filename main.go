@@ -38,6 +38,8 @@ func main() {
 	mux.HandleFunc("POST /register/finish", registerFinish)
 	mux.HandleFunc("POST /login/begin", loginBegin)
 	mux.HandleFunc("POST /login/finish", loginFinish)
+	mux.HandleFunc("GET /session", getSession)
+	mux.HandleFunc("POST /logout", logout)
 	srv := http.Server{Addr: ":8000", Handler: mux}
 	fmt.Print(srv.ListenAndServe())
 }
@@ -91,7 +93,7 @@ func registerBegin(w http.ResponseWriter, r *http.Request) {
 func registerFinish(w http.ResponseWriter, r *http.Request) {
 	key := getOrSetCookie(w, r, "webauthn_ceremony")
 	session := sessionModel.Get(key)
-	deleteCookie(w, key)
+	deleteCookie(w, "webauthn_ceremony")
 	sessionModel.Delete(key)
 	u, _ := userModel.Get(session.UserID)
 	if u == nil {
@@ -137,7 +139,7 @@ func loginBegin(w http.ResponseWriter, r *http.Request) {
 func loginFinish(w http.ResponseWriter, r *http.Request) {
 	key := getOrSetCookie(w, r, "webauthn_ceremony")
 	session := sessionModel.Get(key)
-	deleteCookie(w, key)
+	deleteCookie(w, "webauthn_ceremony")
 	sessionModel.Delete(key)
 	u, _ := userModel.Get(session.UserID)
 	if u == nil {
@@ -156,5 +158,55 @@ func loginFinish(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	userModel.Upsert(u)
+
+	// Keep login session
+	if oldCookie, err := r.Cookie("session"); err == nil && oldCookie.Value != "" {
+		sessionModel.DeleteUserSession(oldCookie.Value)
+	}
+	sessionToken := generateToken()
+	setCookie(w, "session", sessionToken)
+	sessionModel.SaveUserSession(sessionToken, &UserSession{
+		UserID:   u.Id,
+		Username: u.Name,
+	})
+
+	w.WriteHeader(http.StatusOK)
+}
+
+type SessionResponse struct {
+	LoggedIn bool   `json:"loggedIn"`
+	Username string `json:"username,omitempty"`
+}
+
+func getSession(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	c, err := r.Cookie("session")
+	if err != nil || c.Value == "" {
+		json.NewEncoder(w).Encode(SessionResponse{LoggedIn: false})
+		return
+	}
+	userSession, err := sessionModel.GetUserSession(c.Value)
+	if err != nil || userSession == nil {
+		json.NewEncoder(w).Encode(SessionResponse{LoggedIn: false})
+		return
+	}
+	u, err := userModel.Get(userSession.UserID)
+	if err != nil || u == nil {
+		deleteCookie(w, "session")
+		sessionModel.DeleteUserSession(c.Value)
+		json.NewEncoder(w).Encode(SessionResponse{LoggedIn: false})
+		return
+	}
+	json.NewEncoder(w).Encode(SessionResponse{
+		LoggedIn: true,
+		Username: u.Name,
+	})
+}
+
+func logout(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie("session"); err == nil && c.Value != "" {
+		sessionModel.DeleteUserSession(c.Value)
+	}
+	deleteCookie(w, "session")
 	w.WriteHeader(http.StatusOK)
 }

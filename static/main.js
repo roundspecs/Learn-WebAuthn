@@ -10,6 +10,24 @@ function setStatus(status) {
   statusText.innerHTML = status;
 }
 
+checkSession();
+
+async function checkSession() {
+  try {
+    const response = await fetch("/session");
+    if (!response.ok) return;
+    const data = await response.json();
+    if (data.loggedIn) {
+      setStatus("Logged in");
+      if (data.username) {
+        usernameField.value = data.username;
+      }
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 async function register() {
   const username = usernameField.value;
   if (username == "") {

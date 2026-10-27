@@ -342,3 +342,106 @@ func TestLoginFinish(t *testing.T) {
 		})
 	}
 }
+
+func TestGetSession(t *testing.T) {
+	t.Run("No Cookie", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/session", nil)
+		w := httptest.NewRecorder()
+
+		getSession(w, r)
+		b, _ := io.ReadAll(w.Body)
+		body := string(b)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Code: expected %v, got %v\nBody: %v", http.StatusOK, w.Code, body)
+		}
+		expectedBody := "{\"loggedIn\":false}\n"
+		if body != expectedBody {
+			t.Errorf("Body: expected %q, got %q", expectedBody, body)
+		}
+	})
+
+	t.Run("Invalid Cookie", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/session", nil)
+		r.AddCookie(&http.Cookie{Name: "session", Value: "non-existent-token"})
+		w := httptest.NewRecorder()
+
+		getSession(w, r)
+		b, _ := io.ReadAll(w.Body)
+		body := string(b)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Code: expected %v, got %v\nBody: %v", http.StatusOK, w.Code, body)
+		}
+		expectedBody := "{\"loggedIn\":false}\n"
+		if body != expectedBody {
+			t.Errorf("Body: expected %q, got %q", expectedBody, body)
+		}
+	})
+
+	t.Run("Valid Session", func(t *testing.T) {
+		testUsername := uuid.New().String()
+		u := &User{
+			Id:          make([]byte, 64),
+			Name:        testUsername,
+			DisplayName: testUsername,
+		}
+		userModel.Upsert(u)
+		time.Sleep(time.Second)
+
+		sessionToken := generateToken()
+		_ = sessionModel.SaveUserSession(sessionToken, &UserSession{
+			UserID:   u.Id,
+			Username: u.Name,
+		})
+
+		r := httptest.NewRequest(http.MethodGet, "/session", nil)
+		r.AddCookie(&http.Cookie{Name: "session", Value: sessionToken})
+		w := httptest.NewRecorder()
+
+		getSession(w, r)
+		b, _ := io.ReadAll(w.Body)
+		body := string(b)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Code: expected %v, got %v\nBody: %v", http.StatusOK, w.Code, body)
+		}
+		expectedBody := `{"loggedIn":true,"username":"` + testUsername + `"}` + "\n"
+		if body != expectedBody {
+			t.Errorf("Body: expected %q, got %q", expectedBody, body)
+		}
+	})
+}
+
+func TestLogout(t *testing.T) {
+	sessionToken := generateToken()
+	_ = sessionModel.SaveUserSession(sessionToken, &UserSession{
+		UserID:   []byte("test-user-id"),
+		Username: "test-user",
+	})
+
+	r := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	r.AddCookie(&http.Cookie{Name: "session", Value: sessionToken})
+	w := httptest.NewRecorder()
+
+	logout(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Code: expected %v, got %v", http.StatusOK, w.Code)
+	}
+
+	foundDeletedCookie := false
+	for _, cookie := range w.Result().Cookies() {
+		if cookie.Name == "session" && cookie.MaxAge < 0 {
+			foundDeletedCookie = true
+		}
+	}
+	if !foundDeletedCookie {
+		t.Errorf("Expected session cookie to be deleted")
+	}
+
+	sess, _ := sessionModel.GetUserSession(sessionToken)
+	if sess != nil {
+		t.Errorf("Expected user session to be deleted from Couchbase")
+	}
+}
