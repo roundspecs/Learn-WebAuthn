@@ -76,7 +76,7 @@ async function register() {
     body: JSON.stringify({ username: username }),
   });
   if (!response.ok) {
-    setStatus("Error");
+    setStatus(await response.text());
     return;
   }
   const options = await response.json();
@@ -109,7 +109,7 @@ async function register() {
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    setStatus("Error");
+    setStatus(await response.text());
   }
   else {
     setStatus("Registered")
